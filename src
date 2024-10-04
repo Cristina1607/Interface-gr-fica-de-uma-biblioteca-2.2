@@ -1,0 +1,270 @@
+import tkinter as tk
+from tkinter import ttk
+import sqlite3
+from tkinter import messagebox
+
+# Função para conectar ao banco de dados
+def connect_db():
+    conn = sqlite3.connect('biblioteca.db')
+    cursor = conn.cursor()
+    return conn, cursor
+
+# Função para inicializar o banco de dados
+def init_db():
+    conn, cursor = connect_db()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS livros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            autor TEXT NOT NULL,
+            genero TEXT NOT NULL,
+            ano INTEGER NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS emprestimos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            livro_id INTEGER,
+            data_emp TEXT NOT NULL,
+            data_dev TEXT NOT NULL,
+            nome_usuario TEXT NOT NULL,
+            FOREIGN KEY (livro_id) REFERENCES livros (id)
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            email TEXT NOT NULL,
+            telefone TEXT NOT NULL  -- Adicionando coluna para telefone
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Funções para manipulação de dados
+def add_livro():
+    titulo = entry_titulo.get()
+    autor = entry_autor.get()
+    genero = entry_genero.get()
+    ano = entry_ano.get()
+    
+    if titulo and autor and genero and ano.isdigit():
+        conn, cursor = connect_db()
+        cursor.execute('INSERT INTO livros (titulo, autor, genero, ano) VALUES (?, ?, ?, ?)', (titulo, autor, genero, int(ano)))
+        conn.commit()
+        conn.close()
+        messagebox.showinfo('Sucesso', 'Livro adicionado com sucesso!')
+    else:
+        messagebox.showwarning('Erro', 'Preencha todos os campos corretamente!')
+
+def view_livros():
+    conn, cursor = connect_db()
+    cursor.execute('SELECT * FROM livros')
+    livros = cursor.fetchall()
+    conn.close()
+    livros_list.delete(0, tk.END)
+    for livro in livros:
+        livros_list.insert(tk.END, f'ID: {livro[0]}, Título: {livro[1]}, Autor: {livro[2]}, Gênero: {livro[3]}, Ano: {livro[4]}')
+
+def search_by_title_and_genre():
+    titulo = entry_search_title.get()
+    genero = entry_search_genre.get()
+    
+    conn, cursor = connect_db()
+    query = 'SELECT * FROM livros WHERE 1=1'  # '1=1' para facilitar a adição de condições
+    params = []
+    
+    if titulo:
+        query += ' AND titulo LIKE ?'
+        params.append(f'%{titulo}%')
+    if genero:
+        query += ' AND genero LIKE ?'
+        params.append(f'%{genero}%')
+    
+    cursor.execute(query, params)
+    livros = cursor.fetchall()
+    conn.close()
+    
+    livros_list.delete(0, tk.END)
+    for livro in livros:
+        livros_list.insert(tk.END, f'ID: {livro[0]}, Título: {livro[1]}, Autor: {livro[2]}, Gênero: {livro[3]}, Ano: {livro[4]}')
+
+def add_emprestimo():
+    livro_id = entry_livro_id.get()
+    data_emp = entry_data_emp.get()
+    data_dev = entry_data_dev.get()
+    nome_usuario = entry_nome_usuario.get()
+    
+    if livro_id.isdigit() and data_emp and data_dev and nome_usuario:
+        conn, cursor = connect_db()
+        cursor.execute('INSERT INTO emprestimos (livro_id, data_emp, data_dev, nome_usuario) VALUES (?, ?, ?, ?)', 
+                       (int(livro_id), data_emp, data_dev, nome_usuario))
+        conn.commit()
+        conn.close()
+        messagebox.showinfo('Sucesso', 'Empréstimo adicionado com sucesso!')
+    else:
+        messagebox.showwarning('Erro', 'Preencha todos os campos corretamente!')
+
+def view_emprestimos():
+    conn, cursor = connect_db()
+    cursor.execute('SELECT * FROM emprestimos')
+    emprestimos = cursor.fetchall()
+    conn.close()
+    emprestimos_list.delete(0, tk.END)
+    for emp in emprestimos:
+        emprestimos_list.insert(tk.END, f'ID: {emp[0]}, LivroID: {emp[1]}, Data Empréstimo: {emp[2]}, Data Devolução: {emp[3]}, Usuário: {emp[4]}')
+
+def delete_emprestimo():
+    emp_id = emprestimos_list.get(emprestimos_list.curselection()).split(',')[0].split(':')[1].strip()
+    if emp_id:
+        conn, cursor = connect_db()
+        cursor.execute('DELETE FROM emprestimos WHERE id = ?', (emp_id,))
+        conn.commit()
+        conn.close()
+        view_emprestimos()
+        messagebox.showinfo('Sucesso', 'Empréstimo excluído com sucesso!')
+
+def add_usuario():
+    nome = entry_nome_usuario.get()
+    email = entry_email.get()
+    telefone = entry_telefone.get()  # Obtendo o telefone do campo correspondente
+    
+    if nome and email and telefone:
+        conn, cursor = connect_db()
+        cursor.execute('INSERT INTO usuarios (nome, email, telefone) VALUES (?, ?, ?)', (nome, email, telefone))
+        conn.commit()
+        conn.close()
+        messagebox.showinfo('Sucesso', 'Usuário adicionado com sucesso!')
+    else:
+        messagebox.showwarning('Erro', 'Preencha todos os campos corretamente!')
+
+def view_usuarios():
+    conn, cursor = connect_db()
+    cursor.execute('SELECT * FROM usuarios')
+    usuarios = cursor.fetchall()
+    conn.close()
+    usuarios_list.delete(0, tk.END)
+    for usuario in usuarios:
+        usuarios_list.insert(tk.END, f'ID: {usuario[0]}, Nome: {usuario[1]}, Email: {usuario[2]}, Telefone: {usuario[3]}')  # Incluindo telefone na visualização
+
+# Inicializa a interface gráfica
+root = tk.Tk()
+root.title('Sistema de Biblioteca')
+root.configure(bg='#9be3f4')  # Cor de fundo da janela
+
+# Inicializa o banco de dados
+init_db()
+
+# Configuração da interface
+notebook = ttk.Notebook(root)
+notebook.pack(pady=10, expand=True)
+
+# Aba de Livros
+aba_livros = ttk.Frame(notebook)
+notebook.add(aba_livros, text='Livros')
+
+# Frame para adicionar livros
+frame_livros = tk.LabelFrame(aba_livros, text='Adicionar Livro', bg='#9be3f4')
+frame_livros.pack(padx=10, pady=10)
+
+tk.Label(frame_livros, text='Título:', bg='#9be3f4').grid(row=0, column=0)
+entry_titulo = tk.Entry(frame_livros)
+entry_titulo.grid(row=0, column=1)
+
+tk.Label(frame_livros, text='Autor:', bg='#9be3f4').grid(row=1, column=0)
+entry_autor = tk.Entry(frame_livros)
+entry_autor.grid(row=1, column=1)
+
+tk.Label(frame_livros, text='Gênero:', bg='#9be3f4').grid(row=2, column=0)
+entry_genero = tk.Entry(frame_livros)
+entry_genero.grid(row=2, column=1)
+
+tk.Label(frame_livros, text='Ano:', bg='#9be3f4').grid(row=3, column=0)
+entry_ano = tk.Entry(frame_livros)
+entry_ano.grid(row=3, column=1)
+
+# Definindo a cor dos botões
+button_color = '#8ecae6'
+
+tk.Button(frame_livros, text='Adicionar Livro', command=add_livro, bg=button_color).grid(row=4, columnspan=2, pady=5)
+
+# Frame de busca por título e gênero
+frame_search = tk.LabelFrame(aba_livros, text='Buscar Livro por Título e Gênero', bg='#9be3f4')
+frame_search.pack(padx=10, pady=10)
+
+tk.Label(frame_search, text='Título:', bg='#9be3f4').grid(row=0, column=0)
+entry_search_title = tk.Entry(frame_search)
+entry_search_title.grid(row=0, column=1)
+
+tk.Label(frame_search, text='Gênero:', bg='#9be3f4').grid(row=1, column=0)
+entry_search_genre = tk.Entry(frame_search)
+entry_search_genre.grid(row=1, column=1)
+
+tk.Button(frame_search, text='Buscar', command=search_by_title_and_genre, bg=button_color).grid(row=2, columnspan=2, pady=5)
+
+# Listbox para visualizar livros
+livros_list = tk.Listbox(aba_livros, height=6, width=50, bg='#ffffff')
+livros_list.pack(padx=10, pady=10)
+tk.Button(aba_livros, text='Visualizar Livros', command=view_livros, bg=button_color).pack(pady=5)
+
+# Aba de Empréstimos
+aba_emprestimos = ttk.Frame(notebook)
+notebook.add(aba_emprestimos, text='Empréstimos')
+
+# Frame para adicionar empréstimos
+frame_emprestimos = tk.LabelFrame(aba_emprestimos, text='Adicionar Empréstimo', bg='#9be3f4')
+frame_emprestimos.pack(padx=10, pady=10)
+
+tk.Label(frame_emprestimos, text='Livro ID:', bg='#9be3f4').grid(row=0, column=0)
+entry_livro_id = tk.Entry(frame_emprestimos)
+entry_livro_id.grid(row=0, column=1)
+
+tk.Label(frame_emprestimos, text='Data Empréstimo:', bg='#9be3f4').grid(row=1, column=0)
+entry_data_emp = tk.Entry(frame_emprestimos)
+entry_data_emp.grid(row=1, column=1)
+
+tk.Label(frame_emprestimos, text='Data Devolução:', bg='#9be3f4').grid(row=2, column=0)
+entry_data_dev = tk.Entry(frame_emprestimos)
+entry_data_dev.grid(row=2, column=1)
+
+tk.Label(frame_emprestimos, text='Nome Usuário:', bg='#9be3f4').grid(row=3, column=0)
+entry_nome_usuario = tk.Entry(frame_emprestimos)
+entry_nome_usuario.grid(row=3, column=1)
+
+tk.Button(frame_emprestimos, text='Adicionar Empréstimo', command=add_emprestimo, bg=button_color).grid(row=4, columnspan=2, pady=5)
+
+# Listbox para visualizar empréstimos
+emprestimos_list = tk.Listbox(aba_emprestimos, height=6, width=50, bg='#ffffff')
+emprestimos_list.pack(padx=10, pady=10)
+tk.Button(aba_emprestimos, text='Visualizar Empréstimos', command=view_emprestimos, bg=button_color).pack(pady=5)
+tk.Button(aba_emprestimos, text='Excluir Empréstimo', command=delete_emprestimo, bg=button_color).pack(pady=5)
+
+# Aba de Usuários
+aba_usuarios = ttk.Frame(notebook)
+notebook.add(aba_usuarios, text='Usuários')
+
+# Frame para adicionar usuários
+frame_usuarios = tk.LabelFrame(aba_usuarios, text='Adicionar Usuário', bg='#9be3f4')
+frame_usuarios.pack(padx=10, pady=10)
+
+tk.Label(frame_usuarios, text='Nome:', bg='#9be3f4').grid(row=0, column=0)
+entry_nome_usuario = tk.Entry(frame_usuarios)
+entry_nome_usuario.grid(row=0, column=1)
+
+tk.Label(frame_usuarios, text='Email:', bg='#9be3f4').grid(row=1, column=0)
+entry_email = tk.Entry(frame_usuarios)
+entry_email.grid(row=1, column=1)
+
+tk.Label(frame_usuarios, text='Telefone:', bg='#9be3f4').grid(row=2, column=0)
+entry_telefone = tk.Entry(frame_usuarios)
+entry_telefone.grid(row=2, column=1)
+
+tk.Button(frame_usuarios, text='Adicionar Usuário', command=add_usuario, bg=button_color).grid(row=3, columnspan=2, pady=5)
+
+# Listbox para visualizar usuários
+usuarios_list = tk.Listbox(aba_usuarios, height=6, width=50, bg='#ffffff')
+usuarios_list.pack(padx=10, pady=10)
+tk.Button(aba_usuarios, text='Visualizar Usuários', command=view_usuarios, bg=button_color).pack(pady=5)
+
+root.mainloop()
